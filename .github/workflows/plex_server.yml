@@ -97,7 +97,15 @@ jobs:
       run: |
         echo "PLEXAPI_AUTH_SERVER_TOKEN=${{ secrets.PLEXAPI_AUTH_SERVER_TOKEN }}" >> $GITHUB_ENV
 
+    - name: Restore fake media files
+      id: cache-data
+      uses: actions/cache@v3
+      with:
+        path: data
+        key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-fake-data
+
     - name: Create fake media
+      if: steps.cache-data.outputs.cache-hit != 'true'
       run: |
         sudo apt-get install -y ffmpeg
         mkdir ./data
@@ -130,29 +138,13 @@ jobs:
           --${{ matrix.plex }}
 
     - name: Main tests with ${{ matrix.plex }} server
-      env:
-        TEST_ACCOUNT_ONCE: ${{ matrix.plex == 'unclaimed' }}
-      run: |
-        . venv/bin/activate
-        pytest \
-          -rxXs \
-          --ignore=tests/test_sync.py \
-          --tb=native \
-          --verbose \
-          --cov=plexapi \
-          tests 
-
-    - name: Sync tests with ${{ matrix.plex }} server
-      if: matrix.plex == 'claimed'
       run: |
         . venv/bin/activate
         pytest \
           -rxXs \
           --tb=native \
           --verbose \
-          --cov=plexapi \
-          --cov-append \
-          tests/test_sync.py
+          tests
 
     - name: Unlink PMS from MyPlex account
       if: always()
