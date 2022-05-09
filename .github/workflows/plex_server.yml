@@ -12,8 +12,7 @@ env:
 jobs:
   pytest:
     name: pytest ${{ matrix.python-version }}
-    needs: lint-flake8
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     env:
       PLEXAPI_AUTH_SERVER_BASEURL: http://127.0.0.1:32400
       PLEX_CONTAINER: linuxserver/plex
