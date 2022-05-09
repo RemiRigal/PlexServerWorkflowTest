@@ -59,18 +59,8 @@ DOCKER_CMD = [
     "linuxserver/plex:%(image_tag)s",
 ]
 
-# Create empty subtitle
-# > echo "1\n00:00:00,000 --> 00:00:01,000\nSubtitle" > empty.srt
-# Create empty audio
-# > ffmpeg -f lavfi -i anullsrc -t 3 -c:a libvorbis empty.wav
-# Create empty video
-# > ffmpeg -f lavfi -t 3 -i color=c=black:s=640x480 -c:v libx264 -tune stillimage -pix_fmt yuv420p empty.mkv
-# Mux files
-# > ffmpeg -i empty.mkv -i empty.wav -i empty.srt -c copy -map 0:v:0 -map 1:a:0 -map 1:a:0 -map 2:s:0 -map 2:s:0 -metadata:s:a:0 language=eng -metadata:s:a:1 language=fre -metadata:s:s:0 language=eng -metadata:s:s:1 language=fre -metadata:s:s:1 forced=true test.mkv
 
-
-BASE_DIR_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STUB_VIDEO_PATH = os.path.join(BASE_DIR_PATH, "data", "empty.mkv")
+STUB_VIDEO_PATH = os.path.expanduser("~/.cache/data/empty.mkv")
 
 
 def check_ext(path, ext):

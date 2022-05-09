@@ -101,22 +101,22 @@ jobs:
       id: cache-data
       uses: actions/cache@v3
       with:
-        path: data
+        path: ~/.cache/data
         key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-fake-data
 
     - name: Create fake media
       if: steps.cache-data.outputs.cache-hit != 'true'
       run: |
         sudo apt-get install -y ffmpeg
-        mkdir ./data
+        mkdir ~/.cache/data
         echo "Generating subtitles..."
-        printf "1\n00:00:00,000 --> 00:00:01,000\nSubtitle" > ./data/empty.srt
+        printf "1\n00:00:00,000 --> 00:00:01,000\nSubtitle" > ~/.cache/data/empty.srt
         echo "Generating audio..."
-        ffmpeg -hide_banner -loglevel error -f lavfi -i anullsrc -t 3 -c:a libvorbis ./data/empty.wav
+        ffmpeg -hide_banner -loglevel error -f lavfi -i anullsrc -t 3 -c:a libvorbis ~/.cache/data/empty.wav
         echo "Generating video..."
-        ffmpeg -hide_banner -loglevel error -f lavfi -t 3 -i color=c=black:s=640x480 -c:v libx264 -tune stillimage -pix_fmt yuv420p ./data/empty.mkv
+        ffmpeg -hide_banner -loglevel error -f lavfi -t 3 -i color=c=black:s=640x480 -c:v libx264 -tune stillimage -pix_fmt yuv420p ~/.cache/data/empty.mkv
         echo "Muxing everything..."
-        ffmpeg -hide_banner -loglevel error -i ./data/empty.mkv -i ./data/empty.wav -i ./data/empty.srt \
+        ffmpeg -hide_banner -loglevel error -i ~/.cache/data/empty.mkv -i ~/.cache/data/empty.wav -i ~/.cache/data/empty.srt \
           -c copy -map 0:v:0 -map 1:a:0 -map 1:a:0 \
           -map 2:s:0 -map 2:s:0 \
           -metadata:s:a:0 language=eng \
@@ -124,7 +124,7 @@ jobs:
           -metadata:s:s:0 language=eng \
           -metadata:s:s:1 language=fre \
           -metadata:s:s:1 forced=true \
-          ./data/test.mkv
+          ~/.cache/data/test.mkv
 
     - name: Bootstrap ${{ matrix.plex }} Plex server
       run: |
