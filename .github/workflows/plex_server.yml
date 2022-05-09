@@ -1,0 +1,149 @@
+name: plex_server
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  CACHE_VERSION: 1
+  DEFAULT_PYTHON: 3.8
+
+jobs:
+  pytest:
+    name: pytest ${{ matrix.python-version }}
+    needs: lint-flake8
+    runs-on: ubuntu-latest
+    env:
+      PLEXAPI_AUTH_SERVER_BASEURL: http://127.0.0.1:32400
+      PLEX_CONTAINER: linuxserver/plex
+      PLEX_CONTAINER_TAG: latest
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        python-version: [3.8]
+        plex: ['claimed']
+        is-master:
+          - ${{ github.ref == 'refs/heads/master' }}
+        exclude:
+          - is-master: false
+            plex: claimed
+    steps:
+    - name: Check out code from Github
+      uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      id: python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Restore Python ${{ matrix.python-version }} virtual environment
+      id: cache-venv
+      uses: actions/cache@v2
+      with:
+        path: venv
+        key: >-
+          ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}
+    - name: Create Python virtual environment
+      if: steps.cache-venv.outputs.cache-hit != 'true'
+      run: |
+        python -m venv venv
+        . venv/bin/activate
+        pip install -U pip
+        pip install -r requirements.txt
+        pip install -e .
+    - name: Get PMS Docker image digest
+      id: docker-digest
+      run: |
+        mkdir -p ~/.cache/docker/${{ env.PLEX_CONTAINER }}
+        echo "Image: ${{ env.PLEX_CONTAINER }}"
+        echo "Tag: ${{ env.PLEX_CONTAINER_TAG }}"
+        token=$(curl \
+          --silent \
+          "https://auth.docker.io/token?scope=repository:${{ env.PLEX_CONTAINER }}:pull&service=registry.docker.io" \
+          | jq -r '.token')
+        digest=$(curl \
+          --silent \
+          --header "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+          --header "Authorization: Bearer $token" \
+          "https://registry-1.docker.io/v2/${{ env.PLEX_CONTAINER }}/manifests/${{ env.PLEX_CONTAINER_TAG }}" \
+          | jq -r '.config.digest')
+        echo "Digest: $digest"
+        echo ::set-output name=digest::$digest
+    - name: Cache PMS Docker image
+      id: docker-cache
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/docker/plexinc
+        key: ${{ runner.os }}-docker-pms-${{ steps.docker-digest.outputs.digest }}
+
+    - name: Pull PMS Docker image
+      if: steps.docker-cache.outputs.cache-hit != 'true'
+      run: |
+        docker pull ${{ env.PLEX_CONTAINER }}:${{ env.PLEX_CONTAINER_TAG }}
+        docker save -o ~/.cache/docker/${{ env.PLEX_CONTAINER }}-${{ env.PLEX_CONTAINER_TAG }}.tar ${{ env.PLEX_CONTAINER }}:${{ env.PLEX_CONTAINER_TAG }}
+        echo "Saved image: ${{ env.PLEX_CONTAINER }}:${{ env.PLEX_CONTAINER_TAG }}"
+    - name: Load PMS Docker image
+      if: steps.docker-cache.outputs.cache-hit == 'true'
+      run: |
+        docker load -i ~/.cache/docker/${{ env.PLEX_CONTAINER }}-${{ env.PLEX_CONTAINER_TAG }}.tar
+    - name: Set Plex credentials
+      if: matrix.plex == 'claimed'
+      run: |
+        echo "PLEXAPI_AUTH_SERVER_TOKEN=${{ secrets.PLEXAPI_AUTH_SERVER_TOKEN }}" >> $GITHUB_ENV
+    - name: Create fake media
+      run: |
+        apt-get install -y ffmpeg
+        mkdir -p "./data/TV-Shows"
+        echo "1\n00:00:00,000 --> 00:00:01,000\nSubtitle" > ./data/empty.srt
+        ffmpeg -f lavfi -i anullsrc -t 3 -c:a libvorbis ./data/empty.wav
+        ffmpeg -f lavfi -t 3 -i color=c=black:s=640x480 -c:v libx264 -tune stillimage -pix_fmt yuv420p ./data/empty.mkv
+        ffmpeg -i ./data/empty.mkv -i ./data/empty.wav -i ./data/empty.srt \
+          -c copy -map 0:v:0 -map 1:a:0 -map 1:a:0 \
+          -map 2:s:0 -map 2:s:0 \
+          -metadata:s:a:0 language=eng \
+          -metadata:s:a:1 language=fre \
+          -metadata:s:s:0 language=eng \
+          -metadata:s:s:1 language=fre \
+          -metadata:s:s:1 forced=true \
+          ./data/test.mkv
+    - name: Bootstrap ${{ matrix.plex }} Plex server
+      run: |
+        . venv/bin/activate
+        python \
+          -u tools/plex-bootstrap.py \
+          --destination plex \
+          --advertise-ip 127.0.0.1 \
+          --bootstrap-timeout 540 \
+          --docker-tag ${{ env.PLEX_CONTAINER_TAG }} \
+          --${{ matrix.plex }}
+    - name: Main tests with ${{ matrix.plex }} server
+      env:
+        TEST_ACCOUNT_ONCE: ${{ matrix.plex == 'unclaimed' }}
+      run: |
+        . venv/bin/activate
+        pytest \
+          -rxXs \
+          --ignore=tests/test_sync.py \
+          --tb=native \
+          --verbose \
+          --cov=plexapi \
+          tests 
+    - name: Sync tests with ${{ matrix.plex }} server
+      if: matrix.plex == 'claimed'
+      run: |
+        . venv/bin/activate
+        pytest \
+          -rxXs \
+          --tb=native \
+          --verbose \
+          --cov=plexapi \
+          --cov-append \
+          tests/test_sync.py
+    - name: Unlink PMS from MyPlex account
+      if: always()
+      run: |
+        . venv/bin/activate
+        python -u tools/plex-teardowntest.py
