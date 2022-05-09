@@ -56,7 +56,7 @@ DOCKER_CMD = [
     "%(destination)s/transcode:/transcode",
     "-v",
     "%(destination)s/media:/data",
-    "plexinc/pms-docker:%(image_tag)s",
+    "linuxserver/plex:%(image_tag)s",
 ]
 
 # Create empty subtitle

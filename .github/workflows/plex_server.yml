@@ -31,20 +31,21 @@ jobs:
     steps:
     - name: Check out code from Github
       uses: actions/checkout@v3
+
     - name: Set up Python ${{ matrix.python-version }}
       id: python
       uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python-version }}
+
     - name: Restore Python ${{ matrix.python-version }} virtual environment
       id: cache-venv
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: venv
-        key: >-
+        key: |
           ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
-        restore-keys: |
-          ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}-
+
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true'
       run: |
@@ -52,6 +53,7 @@ jobs:
         . venv/bin/activate
         pip install -U pip
         pip install -r requirements.txt
+
     - name: Get PMS Docker image digest
       id: docker-digest
       run: |
@@ -70,11 +72,12 @@ jobs:
           | jq -r '.config.digest')
         echo "Digest: $digest"
         echo ::set-output name=digest::$digest
+
     - name: Cache PMS Docker image
       id: docker-cache
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
-        path: ~/.cache/docker/linuxserver
+        path: ~/.cache/docker/linuxserver/*.tar
         key: ${{ runner.os }}-plex-${{ steps.docker-digest.outputs.digest }}
 
     - name: Pull PMS Docker image
@@ -83,14 +86,17 @@ jobs:
         docker pull ${{ env.PLEX_CONTAINER }}:${{ env.PLEX_CONTAINER_TAG }}
         docker save -o ~/.cache/docker/${{ env.PLEX_CONTAINER }}-${{ env.PLEX_CONTAINER_TAG }}.tar ${{ env.PLEX_CONTAINER }}:${{ env.PLEX_CONTAINER_TAG }}
         echo "Saved image: ${{ env.PLEX_CONTAINER }}:${{ env.PLEX_CONTAINER_TAG }}"
+
     - name: Load PMS Docker image
       if: steps.docker-cache.outputs.cache-hit == 'true'
       run: |
         docker load -i ~/.cache/docker/${{ env.PLEX_CONTAINER }}-${{ env.PLEX_CONTAINER_TAG }}.tar
+
     - name: Set Plex credentials
       if: matrix.plex == 'claimed'
       run: |
         echo "PLEXAPI_AUTH_SERVER_TOKEN=${{ secrets.PLEXAPI_AUTH_SERVER_TOKEN }}" >> $GITHUB_ENV
+
     - name: Create fake media
       run: |
         sudo apt-get install -y ffmpeg
@@ -111,6 +117,7 @@ jobs:
           -metadata:s:s:1 language=fre \
           -metadata:s:s:1 forced=true \
           ./data/test.mkv
+
     - name: Bootstrap ${{ matrix.plex }} Plex server
       run: |
         . venv/bin/activate
@@ -121,6 +128,7 @@ jobs:
           --bootstrap-timeout 540 \
           --docker-tag ${{ env.PLEX_CONTAINER_TAG }} \
           --${{ matrix.plex }}
+
     - name: Main tests with ${{ matrix.plex }} server
       env:
         TEST_ACCOUNT_ONCE: ${{ matrix.plex == 'unclaimed' }}
@@ -133,6 +141,7 @@ jobs:
           --verbose \
           --cov=plexapi \
           tests 
+
     - name: Sync tests with ${{ matrix.plex }} server
       if: matrix.plex == 'claimed'
       run: |
@@ -144,6 +153,7 @@ jobs:
           --cov=plexapi \
           --cov-append \
           tests/test_sync.py
+
     - name: Unlink PMS from MyPlex account
       if: always()
       run: |
