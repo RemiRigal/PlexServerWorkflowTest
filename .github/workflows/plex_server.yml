@@ -44,7 +44,7 @@ jobs:
         key: >-
           ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
         restore-keys: |
-          ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}
+          ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}-
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true'
       run: |
@@ -74,8 +74,8 @@ jobs:
       id: docker-cache
       uses: actions/cache@v2
       with:
-        path: ~/.cache/docker/plexinc
-        key: ${{ runner.os }}-docker-pms-${{ steps.docker-digest.outputs.digest }}
+        path: ~/.cache/docker/linuxserver
+        key: ${{ runner.os }}-plex-${{ steps.docker-digest.outputs.digest }}
 
     - name: Pull PMS Docker image
       if: steps.docker-cache.outputs.cache-hit != 'true'
@@ -94,11 +94,15 @@ jobs:
     - name: Create fake media
       run: |
         sudo apt-get install -y ffmpeg
-        mkdir -p "./data/TV-Shows"
-        echo "1\n00:00:00,000 --> 00:00:01,000\nSubtitle" > ./data/empty.srt
-        ffmpeg -f lavfi -i anullsrc -t 3 -c:a libvorbis ./data/empty.wav
-        ffmpeg -f lavfi -t 3 -i color=c=black:s=640x480 -c:v libx264 -tune stillimage -pix_fmt yuv420p ./data/empty.mkv
-        ffmpeg -i ./data/empty.mkv -i ./data/empty.wav -i ./data/empty.srt \
+        mkdir ./data
+        echo "Generating subtitles..."
+        printf "1\n00:00:00,000 --> 00:00:01,000\nSubtitle" > ./data/empty.srt
+        echo "Generating audio..."
+        ffmpeg -hide_banner -loglevel error -f lavfi -i anullsrc -t 3 -c:a libvorbis ./data/empty.wav
+        echo "Generating video..."
+        ffmpeg -hide_banner -loglevel error -f lavfi -t 3 -i color=c=black:s=640x480 -c:v libx264 -tune stillimage -pix_fmt yuv420p ./data/empty.mkv
+        echo "Muxing everything..."
+        ffmpeg -hide_banner -loglevel error -i ./data/empty.mkv -i ./data/empty.wav -i ./data/empty.srt \
           -c copy -map 0:v:0 -map 1:a:0 -map 1:a:0 \
           -map 2:s:0 -map 2:s:0 \
           -metadata:s:a:0 language=eng \
