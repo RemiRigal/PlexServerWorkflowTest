@@ -292,6 +292,9 @@ if __name__ == "__main__":
     opts, _ = parser.parse_known_args()
 
     account = get_plex_account(opts)
+    if account:
+        print("Successfully logged as user '%s'" % account.username)
+
     path = os.path.realpath(os.path.expanduser(opts.destination))
     media_path = os.path.join(path, "media")
     os.makedirs(media_path, exist_ok=True)

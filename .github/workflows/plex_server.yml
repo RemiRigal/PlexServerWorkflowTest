@@ -43,8 +43,7 @@ jobs:
       uses: actions/cache@v3
       with:
         path: venv
-        key: |
-          ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
+        key: ${{ env.CACHE_VERSION }}-${{ runner.os }}-venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
 
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true'
@@ -53,6 +52,7 @@ jobs:
         . venv/bin/activate
         pip install -U pip
         pip install -r requirements.txt
+        pip install pytest
 
     - name: Get PMS Docker image digest
       id: docker-digest
