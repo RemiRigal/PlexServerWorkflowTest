@@ -3,7 +3,6 @@ import os
 import shutil
 import socket
 import time
-from glob import glob
 from shutil import copyfile, which
 from subprocess import call
 from uuid import uuid4
