@@ -93,7 +93,7 @@ jobs:
         echo "PLEXAPI_AUTH_SERVER_TOKEN=${{ secrets.PLEXAPI_AUTH_SERVER_TOKEN }}" >> $GITHUB_ENV
     - name: Create fake media
       run: |
-        apt-get install -y ffmpeg
+        sudo apt-get install -y ffmpeg
         mkdir -p "./data/TV-Shows"
         echo "1\n00:00:00,000 --> 00:00:01,000\nSubtitle" > ./data/empty.srt
         ffmpeg -f lavfi -i anullsrc -t 3 -c:a libvorbis ./data/empty.wav
@@ -111,7 +111,7 @@ jobs:
       run: |
         . venv/bin/activate
         python \
-          -u tools/plex-bootstrap.py \
+          -u tools/plex_bootstrap.py \
           --destination plex \
           --advertise-ip 127.0.0.1 \
           --bootstrap-timeout 540 \
@@ -144,4 +144,4 @@ jobs:
       if: always()
       run: |
         . venv/bin/activate
-        python -u tools/plex-teardowntest.py
+        python -u tools/plex_teardown.py
