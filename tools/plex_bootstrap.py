@@ -305,7 +305,7 @@ if __name__ == "__main__":
         if which("docker") is None:
             print("Docker is required to be available")
             exit(1)
-        if call(["docker", "pull", "plexinc/pms-docker:%s" % opts.docker_tag]) != 0:
+        if call(["docker", "pull", "linuxserver/plex:%s" % opts.docker_tag]) != 0:
             print("Got an error when executing docker pull!")
             exit(1)
 
